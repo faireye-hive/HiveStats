@@ -79,7 +79,13 @@ export const CurationTab: React.FC<CurationTabProps> = ({ analytics, headBlock }
                   const shareRatio = Math.abs(v.op.value.rshares) / Math.abs(v.op.value.total_vote_weight || 1);
                   const yourShare = (totalPending * 0.5) * shareRatio;
                   
-                  const displayPercent = (Math.abs(v.op.value.weight || 0) / 100).toFixed(1);
+                  let weightVal = v.op.value.weight;
+
+                  if(weightVal>10000){
+                    weightVal = weightVal / 13387000000 * 100;
+                  }
+
+                  const displayPercent = (Math.abs(weightVal || 0) / 100).toFixed(1);
                   const blocksLeft = 201600 - (headBlock - v.block);
                   const daysLeft = Math.max(0, Math.floor(blocksLeft / 28800));
                   

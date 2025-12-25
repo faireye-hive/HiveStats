@@ -26,11 +26,12 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'rewards' | 'curation' | 'circlejerk' | 'delegation'>('overview');
 
-  const parseAssetValue = (asset: HiveAsset): number => {
+    const parseAssetValue = useCallback((asset: HiveAsset): number => {
+
     if (!asset) return 0;
     if (typeof asset === 'string') return parseFloat(asset.split(' ')[0]) || 0;
     return parseInt(asset.amount) / Math.pow(10, asset.precision || 3);
-  };
+  }, []);
 
   const fetchData = useCallback(async (targetUser: string) => {
     setLoading(true);
@@ -139,10 +140,38 @@ const App: React.FC = () => {
       const d = 29 - i;
       const b = dailyMap[d] || { author: 0, curator: 0 };
       runningHP += (b.author + b.curator);
-      return { name: d === 0 ? 'Today' : `${d}d`, stake: Number(runningHP.toFixed(2)) };
+      return { 
+        name: d === 0 ? 'Today' : `${d}d`, 
+        stake: Number(runningHP.toFixed(2)),
+        author: Number(b.author.toFixed(2)),
+        curator: Number(b.curator.toFixed(2))
+      };
     });
 
-    const circleJerk = Object.values(cjMap).map(u => ({ ...u, balance: (u.given + u.received) > 0 ? (Math.min(u.given, u.received) * 2 / (u.given + u.received)) * 100 : 0 })).filter(u => (u.given + u.received) > 0.01).sort((a, b) => (b.given + b.received) - (a.given + a.received)).slice(0, 50);
+    const circleJerk = Object.values(cjMap).map(u => {
+      const maxVal = Math.max(u.given, u.received);
+      const minVal = Math.min(u.given, u.received);
+      // Refined: Ratio of reciprocity (min / max). 
+      // High balance indicates high mutual voting (circlejerk risk).
+      const balance = maxVal > 0 ? (minVal / maxVal) * 100 : 0;
+      return { ...u, balance };
+    }).filter(u => (u.given + u.received) > 0.01)
+      .sort((a, b) => (b.given + b.received) - (a.given + a.received))
+      .slice(0, 50);
+
+        // APR Calculations
+    const curationAPR = (curationHP / Math.max(1, data.hp)) * (365 / 30) * 100;
+    const authorAPR = (authorHP / Math.max(1, data.hp)) * (365 / 30) * 100;
+
+    // Mana Calculation
+    const max_mana = parseFloat(data.account.vesting_shares.split(' ')[0]);
+    const last_mana = parseFloat(data.account.voting_manabar.current_mana.toString());
+    const last_update = data.account.voting_manabar.last_update_time;
+    const now = Math.floor(Date.now() / 1000);
+    const delta = now - last_update;
+    const regenerated = (delta * max_mana) / 432000;
+    const actual_mana = Math.min(max_mana, last_mana + regenerated);
+    const manaPercent = (actual_mana / Math.max(1, max_mana)) * 100;
 
     return {
       authorHBD, authorHP, curationHP, pendingHBD, pendingClaimsCount, uniquePendingVotes,
@@ -152,7 +181,8 @@ const App: React.FC = () => {
       pipelineData: Array.from({ length: 8 }, (_, i) => ({ name: `+${i}d`, value: Number((pipelineMap[i] || 0).toFixed(3)) })),
       delegationROI: (data.delegations || []).map(d => ({ delegatee: d.delegatee, hp: parseAssetValue(d.vesting_shares) * data.vestsToHpRatio, returnedValue: cjMap[d.delegatee]?.received || 0, voteCount: data.votes.filter(v => v.op.value.voter === d.delegatee && v.op.value.author === username).length })),
       distribution: [{ name: 'Author', value: authorHP, color: '#10b981' }, { name: 'Curation', value: curationHP, color: '#3b82f6' }, { name: 'HBD', value: authorHBD, color: '#f59e0b' }],
-      estDailyAuthor: authorHP / 30, estDailyCuration: curationHP / 30
+      estDailyAuthor: authorHP / 30, estDailyCuration: curationHP / 30,
+      curationAPR, authorAPR, manaPercent
     } as AnalyticsData;
   }, [data, username, parseAssetValue]);
 
@@ -170,7 +200,7 @@ const App: React.FC = () => {
         </form>
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {['overview', 'rewards', 'curation', 'circlejerk', 'delegation'].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all capitalize ${activeTab === tab ? 'hive-gradient text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'}`}>{tab}</button>
+            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all capitalize ${activeTab === tab ? 'hive-gradient text-white shadow-lg shadow-red-500/20' : 'bg-slate-900 text-slate-400 border border-slate-800'}`}>{tab}</button>
           ))}
         </div>
       </header>
@@ -197,14 +227,76 @@ const App: React.FC = () => {
                 </div>
               </div>
 
+                                           {/* Reward Distribution Chart */}
               <div className="card-blur p-8 rounded-3xl">
-                <h3 className="font-bold mb-6 flex items-center gap-2"><PieChartIcon className="w-4 h-4 text-emerald-400" /> Portfolio Distribution</h3>
-                <div className="h-[200px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analytics.distribution} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">{analytics.distribution.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie><Tooltip contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px' }} /></PieChart></ResponsiveContainer></div>
+                <h3 className="font-bold mb-6 flex items-center gap-2"><PieChartIcon className="w-4 h-4 text-emerald-400" /> Global Portfolio (30d)</h3>
+                <div className="h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={analytics.distribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {analytics.distribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                        itemStyle={{ color: '#fff', fontSize: '11px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-2 mt-4">
+                  {analytics.distribution.map(item => (
+                    <div key={item.name} className="flex justify-between items-center p-2 bg-slate-900/40 rounded-xl border border-slate-800/40">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></div>
+                        <span className="text-[10px] font-medium text-slate-400">{item.name}</span>
+                      </div>
+                      <span className="text-xs font-bold text-slate-200">{item.value.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="card-blur p-8 rounded-3xl border-t-2 border-t-rose-500/30">
-                <h3 className="font-bold flex items-center gap-2 text-rose-400 mb-6"><Clock className="w-4 h-4" /> Daily Pipeline Inflow</h3>
-                <div className="h-[140px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={analytics.pipelineData}><Bar dataKey="value" fill="#f43f5e" radius={[4, 4, 0, 0]} /><XAxis dataKey="name" fontSize={8} axisLine={false} tickLine={false} /></BarChart></ResponsiveContainer></div>
+{/* Curation Pipeline Forensics */}
+              <div className="card-blur p-8 rounded-3xl border-t-2 border-t-rose-500/30 shadow-lg shadow-rose-500/5">
+                <div className="flex justify-between items-start mb-6">
+                    <h3 className="font-bold flex items-center gap-2 text-rose-400"><Clock className="w-4 h-4" /> Daily Pipeline Distribution</h3>
+                    <div className="text-right">
+                        <p className="text-lg font-black text-rose-400">${analytics.pendingHBD.toFixed(3)}</p>
+                        <p className="text-[8px] text-slate-500 font-bold uppercase">Expected 7-day Inflow</p>
+                    </div>
+                </div>
+                <div className="h-[140px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.pipelineData}>
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        {analytics.pipelineData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={`rgba(244, 63, 94, ${0.3 + (index * 0.1)})`} />
+                        ))}
+                      </Bar>
+                      <XAxis dataKey="name" fontSize={8} axisLine={false} tickLine={false} stroke="#475569" />
+                      <Tooltip 
+                         cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                         contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px' }}
+                         itemStyle={{ fontSize: '10px' }}
+                         formatter={(val: number) => [`$${val.toFixed(3)}`, 'Payout']}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="mt-4 text-[10px] text-slate-500 text-center leading-relaxed">
+                    Analyzing active curation windows. Projected yields from posts currently maturing.
+                </p>
               </div>
             </div>
 

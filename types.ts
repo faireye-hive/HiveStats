@@ -142,6 +142,9 @@ export interface AnalyticsData {
   meanBalanceIndex: number;
   pendingClaimsCount: number;
   uniquePendingVotes: HAFVoteOperation[];
+  curationAPR: number;
+  authorAPR: number;
+  manaPercent: number;
 }
 
 export interface DashboardData {
