@@ -7,6 +7,7 @@ export interface HiveAccount {
     current_mana: string | number;
     last_update_time: number;
   };
+  voting_power: number;
   balance: string;
   hbd_balance: string;
   vesting_shares: string;

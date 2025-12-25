@@ -164,14 +164,14 @@ const App: React.FC = () => {
     const authorAPR = (authorHP / Math.max(1, data.hp)) * (365 / 30) * 100;
 
     // Mana Calculation
-    const max_mana = parseFloat(data.account.vesting_shares.split(' ')[0]);
-    const last_mana = parseFloat(data.account.voting_manabar.current_mana.toString());
+    const max_mana = 100;
+    const last_mana = Number(data.account.voting_power)/100;
     const last_update = data.account.voting_manabar.last_update_time;
     const now = Math.floor(Date.now() / 1000);
     const delta = now - last_update;
     const regenerated = (delta * max_mana) / 432000;
     const actual_mana = Math.min(max_mana, last_mana + regenerated);
-    const manaPercent = (actual_mana / Math.max(1, max_mana)) * 100;
+    const manaPercent = actual_mana;
 
     return {
       authorHBD, authorHP, curationHP, pendingHBD, pendingClaimsCount, uniquePendingVotes,
