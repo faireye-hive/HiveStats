@@ -95,6 +95,16 @@ export interface HAFBenefactorRewardOperation extends HAFOperation {
   };
 }
 
+export interface HAFWitnessRewardOperation extends HAFOperation {
+  op: {
+    type: "witness_reward_operation";
+    value: {
+      witness: string;
+      shares: HiveAsset;
+    };
+  };
+}
+
 export interface HAFCurationRewardOperation extends HAFOperation {
   op: {
     type: "curation_reward_operation";
@@ -115,6 +125,25 @@ export interface HAFResponse {
   operations_result: any[];
 }
 
+export interface AnalyticsData {
+  authorHBD: number;
+  authorHP: number;
+  curationHP: number;
+  pendingHBD: number;
+  distribution: any[];
+  dailyData: any[];
+  pipelineData: any[];
+  estDailyAuthor: number;
+  estDailyCuration: number;
+  circleJerk: any[];
+  delegationROI: any[];
+  totalDelegatedOut: number;
+  totalDelegatedIn: number;
+  meanBalanceIndex: number;
+  pendingClaimsCount: number;
+  uniquePendingVotes: HAFVoteOperation[];
+}
+
 export interface DashboardData {
   account: HiveAccount;
   followCount: FollowCount;
@@ -124,6 +153,7 @@ export interface DashboardData {
   authorRewards: HAFAuthorRewardOperation[];
   benefactorRewards: HAFBenefactorRewardOperation[];
   curationRewards: HAFCurationRewardOperation[];
+  witnessRewards: HAFWitnessRewardOperation[];
   vestsToHpRatio: number;
   headBlock: number;
   delegations: any[];

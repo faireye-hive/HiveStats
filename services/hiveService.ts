@@ -42,14 +42,11 @@ export const hiveService = {
     return await hiveCall('condenser_api.get_vesting_delegations', [username, '', 50]);
   },
 
-  /**
-   * Fetches HAF operations with recursive pagination support
-   */
   async getHAFOperations(
     username: string, 
     fromBlock: number, 
     opTypes: number[], 
-    maxPages: number = 5
+    maxPages: number = 200
   ): Promise<HAFOperation[]> {
     let allOps: any[] = [];
     let currentPage = 1;
@@ -65,8 +62,10 @@ export const hiveService = {
         if (!response.ok) break;
         const data: HAFResponse = await response.json();
         
-        if (data.operations_result) {
+        if (data.operations_result && data.operations_result.length > 0) {
           allOps = [...allOps, ...data.operations_result];
+        } else {
+          break;
         }
         
         totalPages = data.total_pages || 1;
